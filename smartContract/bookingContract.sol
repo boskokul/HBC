@@ -190,15 +190,13 @@ contract TouristAgency {
     }
 
     function areDatesOverlapping(uint256 apartmentId, uint256 checkInDate, uint256 checkOutDate) private view returns (bool) {
-        bool isOverlapping = false;
-        for (uint256 i = 1; i < bookingCounter; i++) {
+        for (uint256 i = 1; i <= bookingCounter; i++) {
             if (bookings[i].apartmentId == apartmentId) {
-                if (!(bookings[i].checkOutDate <= checkInDate || bookings[i].checkInDate >= checkOutDate)) {
-                    isOverlapping = true;
-                    break;
+                if (bookings[i].checkInDate < checkOutDate && checkInDate < bookings[i].checkOutDate) {
+                    return true;
                 }
             }
         }
-        return isOverlapping;
+        return false;
     }
 }
