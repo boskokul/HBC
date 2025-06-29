@@ -1,196 +1,289 @@
-import React, { useState } from 'react';
-import './App.css';
-import Web3 from 'web3';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  XCircle,
+} from "lucide-react";
+import {
+  ethers,
+  BrowserProvider,
+  Signer,
+  Contract,
+  parseEther,
+  formatEther,
+} from "ethers";
+import { CONTRACT_ABI, CONTRACT_ADDRESS } from "./blockchainConnection/constants";
+import { Apartment } from "./model/interfaces";
+import Header from "./layout/Header";
+import BrowseApartments from "./layout/pages/BrowseApartments";
+import ListProperty from "./layout/pages/ListProperty";
+import ListingModal from "./layout/modals/ListingModal";
 
 declare global {
   interface Window {
-    ethereum?: import('ethers').Eip1193Provider;
-    Web3?: typeof import('web3');
+    ethereum?: import("ethers").Eip1193Provider;
+    Web3?: typeof import("web3");
   }
 }
 
-function App() {
-  const [account, setAccount] = useState('');
-  const [contract, setContract] = useState<any>(null);
-  const [web3, setWeb3] = useState<any>(null);
-  const [num1, setNum1] = useState('');
-  const [num2, setNum2] = useState('');
-  const [result, setResult] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const contractABI = [
+const TouristAgencyApp: React.FC = () => {
+  const [provider, setProvider] = useState<BrowserProvider | null>(null);
+  const [signer, setSigner] = useState<Signer | null>(null);
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [connected, setConnected] = useState<boolean>(false);
+  const [account, setAccount] = useState<string | null>(null);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [activeTab, setActiveTab] = useState<"browse" | "bookings" | "list">(
+    "browse"
+  );
+  const [showListingModal, setShowListingModal] = useState<boolean>(false);
+  const [newListing, setNewListing] = useState<Omit<Apartment, "id" | "owner">>(
     {
-      "inputs": [
-        {"internalType": "uint256", "name": "a", "type": "uint256"},
-        {"internalType": "uint256", "name": "b", "type": "uint256"}
-      ],
-      "name": "addNumbers",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getResult",
-      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "result",
-      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-      "stateMutability": "view",
-      "type": "function"
+      name: "",
+      location: "",
+      description: "",
+      pricePerNight: BigInt(0), // Initialize as BigInt
+      imageUrls: [""],
     }
-  ];
+  );
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const contractAddress = "0xC8d360977bfA7340a6D7A6AfBF1D6F7034E26254";
-
-  //IMPORTANT FUNCION
-  const connectWallet = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        const accounts = await window.ethereum.request({
-          method: 'eth_requestAccounts'
-        });
-        
-        setAccount(accounts[0]);
-
-        const web3Instance = new Web3(window.ethereum);
-        setWeb3(web3Instance);
-        
-        // contract initialization
-        const contractInstance = new web3Instance.eth.Contract(
-          contractABI,
-          contractAddress
-        );
-        setContract(contractInstance);
-        
-        console.log('Connected to:', accounts[0]);
-      } catch (error) {
-        console.error('Error connecting to MetaMask:', error);
-      }
-    } else {
-      alert('Please install MetaMask!');
-    }
-  };
-
-  const addNumbers = async () => {
-    if (!contract || !num1 || !num2) {
-      alert('Please connect wallet and enter both numbers');
-      return;
-    }
-
+  const connectWallet = async (): Promise<void> => {
+    setError(null);
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      await contract.methods.addNumbers(num1, num2).send({
-        from: account,
-        gas: 100000
-      });
-      
-      const contractResult = await contract.methods.getResult().call();
-      setResult(contractResult);
-      
-      console.log('Addition completed!');
-    } catch (error) {
-      console.error('Error calling contract:', error);
-      alert('Transaction failed. Check console for details.');
+      if (window.ethereum == null) {
+        throw new Error(
+          "MetaMask (or other EVM wallet) not detected. Please install it."
+        );
+      }
+
+      const newProvider = new ethers.BrowserProvider(window.ethereum);
+      setProvider(newProvider);
+
+      const newSigner = await newProvider.getSigner();
+      setSigner(newSigner);
+      setAccount(await newSigner.getAddress());
+      setConnected(true);
+
+      const contractInstance = new ethers.Contract(
+        CONTRACT_ADDRESS,
+        CONTRACT_ABI,
+        newSigner
+      );
+      setContract(contractInstance);
+
+      alert("Wallet connected successfully!");
+    } catch (err: any) {
+      console.error("Failed to connect wallet:", err);
+      setError(`Failed to connect wallet: ${err.message || err.toString()}`);
+      setConnected(false);
+      setAccount(null);
+      setProvider(null);
+      setSigner(null);
+      setContract(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const getCurrentResult = async () => {
-    if (!contract) {
-      alert('Please connect wallet first');
+  const fetchApartments = useCallback(async () => {
+    if (!contract) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const contractApartments: any[] = await contract.getAllApartments();
+      const formattedApartments: Apartment[] = contractApartments.map(
+        (apt) => ({
+          id: Number(apt.id),
+          owner: apt.owner,
+          name: apt.name,
+          location: apt.location,
+          description: apt.description,
+          pricePerNight: apt.pricePerNight,
+          imageUrls: apt.imageUrls,
+        })
+      );
+      setApartments(formattedApartments);
+    } catch (err: any) {
+      console.error("Failed to fetch apartments:", err);
+      setError(`Failed to fetch apartments: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [contract]);
+
+  useEffect(() => {
+    if (contract) {
+      fetchApartments();
+    }
+  }, [contract, fetchApartments]);
+
+  const handleListApartment = async (): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    if (
+      !newListing.name ||
+      !newListing.location ||
+      newListing.pricePerNight <= 0
+    ) {
+      alert(
+        "Please fill in all required fields and ensure price is greater than 0."
+      );
       return;
     }
 
+    setLoading(true);
+    setError(null);
     try {
-      const contractResult = await contract.methods.getResult().call();
-      setResult(contractResult);
-    } catch (error) {
-      console.error('Error getting result:', error);
+      const tx = await contract.listApartment(
+        newListing.name,
+        newListing.location,
+        newListing.description,
+        newListing.pricePerNight,
+        newListing.imageUrls.filter((url) => url.trim() !== "") // Filter empty strings
+      );
+      await tx.wait(); // Wait for transaction to be mined
+
+      alert("Apartment listed successfully!");
+      setShowListingModal(false);
+      setNewListing({
+        name: "",
+        location: "",
+        description: "",
+        pricePerNight: BigInt(0),
+        imageUrls: [""],
+      });
+      fetchApartments(); // Refresh apartment list
+    } catch (err: any) {
+      console.error("Listing failed:", err);
+      setError(`Listing failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          Simple Contract Adder
-        </h1>
-        
-        <div className="mb-6">
-          {account ? (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-              <p className="text-sm">Connected: {account.slice(0, 6)}...{account.slice(-4)}</p>
-            </div>
-          ) : (
-            <button
-              onClick={connectWallet}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-200"
-            >
-              Connect MetaMask
-            </button>
-          )}
-        </div>
+  const handleUpdateApartmentPrice = async (
+    apartmentId: number,
+    currentPrice: bigint
+  ): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet.");
+      return;
+    }
 
-        {account && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                First Number:
-              </label>
-              <input
-                type="number"
-                value={num1}
-                onChange={(e) => setNum1(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter first number"
-              />
+    const newPriceStr = prompt(
+      `Enter new price in ETH for apartment ID ${apartmentId}: (Current: ${formatEther(
+        currentPrice
+      )} ETH)`
+    );
+    if (newPriceStr === null || newPriceStr.trim() === "") {
+      return;
+    }
+
+    let newPriceWei: bigint;
+    try {
+      newPriceWei = parseEther(newPriceStr);
+      if (newPriceWei <= 0) {
+        alert("New price must be greater than 0.");
+        return;
+      }
+    } catch (e) {
+      alert("Invalid price format. Please enter a number (e.g., 0.1, 0.05).");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.updateApartmentPrice(apartmentId, newPriceWei);
+      await tx.wait();
+      alert(`Apartment ${apartmentId} price updated to ${newPriceStr} ETH.`);
+      fetchApartments();
+    } catch (err: any) {
+      console.error("Price update failed:", err);
+      setError(`Price update failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleListingClose = () => {
+    setShowListingModal(false);
+    setNewListing({
+      name: "",
+      location: "",
+      description: "",
+      pricePerNight: BigInt(0),
+      imageUrls: [""],
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+      <Header 
+      connected={connected} 
+      account={account} 
+      activeTab={activeTab} 
+      connectWallet={connectWallet} 
+      loading={loading}
+      setActiveTab={setActiveTab}
+      />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="text-gray-700">Loading...</p>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Second Number:
-              </label>
-              <input
-                type="number"
-                value={num2}
-                onChange={(e) => setNum2(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter second number"
-              />
-            </div>
-            
-            <button
-              onClick={addNumbers}
-              disabled={loading}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition duration-200 disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Add Numbers'}
-            </button>
-            
-            <button
-              onClick={getCurrentResult}
-              className="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition duration-200"
-            >
-              Get Current Result
-            </button>
-            
-            {result && (
-              <div className="mt-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded">
-                <p className="text-lg font-semibold">Result: {result}</p>
-              </div>
-            )}
           </div>
         )}
-      </div>
+        {error && (
+          <div
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+            role="alert"
+          >
+            <strong className="font-bold">Error!</strong>
+            <span className="block sm:inline ml-2">{error}</span>
+            <span className="absolute top-0 bottom-0 right-0 px-4 py-3">
+              <XCircle
+                className="w-5 h-5 text-red-500 cursor-pointer"
+                onClick={() => setError(null)}
+              />
+            </span>
+          </div>
+        )}
+        {activeTab === "browse" && (
+          <BrowseApartments 
+          apartments={apartments} 
+          connected={connected}
+          loading={loading}
+          />
+        )}
+        {activeTab === "list" && (
+          <ListProperty 
+            account={account}
+            apartments={apartments}
+            connectWallet={connectWallet}
+            connected={connected}
+            loading={loading}
+            handleUpdateApartmentPrice={handleUpdateApartmentPrice}
+            setShowListingModal={setShowListingModal}
+          />
+        )}
+      </main>
+      <ListingModal
+        showModal={showListingModal}
+        newListing={newListing}
+        setNewListing={setNewListing}
+        loading={loading}
+        onClose={handleListingClose}
+        onListProperty={handleListApartment}
+      />
     </div>
   );
-}
+};
 
-export default App;
+export default TouristAgencyApp;
