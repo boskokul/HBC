@@ -79,7 +79,7 @@ contract TouristAgency {
         uint256 _checkOutDate
     ) external payable {
         require(_apartmentId > 0 && _apartmentId <= apartmentCounter, "Invalid apartment ID");
-        require(_checkInDate >= block.timestamp, "Check-in date must be in the future");
+        // require(_checkInDate >= block.timestamp, "Check-in date must be in the future");
         require(_checkOutDate > _checkInDate, "Check-out must be after check-in");
         require(msg.sender != apartments[_apartmentId].owner, "Owner cannot book own apartment");
         
@@ -117,8 +117,8 @@ contract TouristAgency {
         require(bookings[_bookingId].guest == msg.sender, "Not booking guest");
         Booking storage booking = bookings[_bookingId];
         require(booking.status == BookingStatus.Booked, "Booking not booked");
-        require(block.timestamp >= booking.checkInDate, "Too early to check in");
-        require(block.timestamp <= booking.checkOutDate, "Booking expired");
+        // require(block.timestamp >= booking.checkInDate, "Too early to check in");
+        // require(block.timestamp <= booking.checkOutDate, "Booking expired");
         
         booking.status = BookingStatus.CheckedIn;
         
