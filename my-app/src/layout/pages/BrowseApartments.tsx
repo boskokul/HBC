@@ -6,12 +6,16 @@ interface PageProps {
     apartments: Apartment[];
     loading: boolean;
     connected: boolean;
+    setSelectedApartment: (apartment: Apartment | null) => void;
+    setShowBookingModal: (show: boolean) => void
 }
 
 const BrowseApartments = ({ 
   apartments, 
   loading, 
-  connected,
+  connected, 
+  setSelectedApartment, 
+  setShowBookingModal 
 }: PageProps) => {
   return (
     <div>
@@ -63,6 +67,8 @@ const BrowseApartments = ({
                       alert("Please connect your wallet first");
                       return;
                     }
+                    setSelectedApartment(apartment);
+                    setShowBookingModal(true);
                   }}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
                 >

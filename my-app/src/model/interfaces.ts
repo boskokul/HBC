@@ -7,3 +7,21 @@ export interface Apartment {
   pricePerNight: bigint;
   imageUrls: string[];
 }
+
+export interface Booking {
+  bookingId: number;
+  apartmentId: number;
+  guest: string;
+  checkInDate: bigint;
+  checkOutDate: bigint;
+  totalPrice: bigint;
+  status: BookingStatus;
+  timestamp: bigint;
+}
+
+export type BookingStatus =
+  | "Booked"
+  | "CheckedIn"
+  | "CheckedOut"
+  | "Cancelled"
+  | "Refunded";

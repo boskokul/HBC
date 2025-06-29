@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
+  Clock,
+  CheckCircle,
   XCircle,
 } from "lucide-react";
 import {
@@ -11,11 +13,15 @@ import {
   formatEther,
 } from "ethers";
 import { CONTRACT_ABI, CONTRACT_ADDRESS } from "./blockchainConnection/constants";
-import { Apartment } from "./model/interfaces";
+import { Booking, BookingStatus, Apartment } from "./model/interfaces";
 import Header from "./layout/Header";
 import BrowseApartments from "./layout/pages/BrowseApartments";
+import { dateToUnixTimestamp } from "./helpers/dateTimeHelpers";
+import MyBookings from "./layout/pages/MyBookings";
 import ListProperty from "./layout/pages/ListProperty";
 import ListingModal from "./layout/modals/ListingModal";
+import { SECONDS_PER_DAY } from "./constants";
+import BookingModal from "./layout/modals/BookingModal";
 
 declare global {
   interface Window {
@@ -24,6 +30,24 @@ declare global {
   }
 }
 
+const getBookingStatusString = (status: number): BookingStatus => {
+  status = Number(status)
+  switch (status) {
+    case 0:
+      return "Booked";
+    case 1:
+      return "CheckedIn";
+    case 2:
+      return "CheckedOut";
+    case 3:
+      return "Cancelled";
+    case 4:
+      return "Refunded";
+    default:
+      return "Booked";
+  }
+};
+
 const TouristAgencyApp: React.FC = () => {
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<Signer | null>(null);
@@ -31,16 +55,23 @@ const TouristAgencyApp: React.FC = () => {
   const [connected, setConnected] = useState<boolean>(false);
   const [account, setAccount] = useState<string | null>(null);
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [activeTab, setActiveTab] = useState<"browse" | "bookings" | "list">(
     "browse"
   );
+  const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(
+    null
+  );
+  const [checkInDateStr, setCheckInDateStr] = useState<string>("");
+  const [checkOutDateStr, setCheckOutDateStr] = useState<string>("");
+  const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [showListingModal, setShowListingModal] = useState<boolean>(false);
   const [newListing, setNewListing] = useState<Omit<Apartment, "id" | "owner">>(
     {
       name: "",
       location: "",
       description: "",
-      pricePerNight: BigInt(0), // Initialize as BigInt
+      pricePerNight: BigInt(0),
       imageUrls: [""],
     }
   );
@@ -112,11 +143,48 @@ const TouristAgencyApp: React.FC = () => {
     }
   }, [contract]);
 
+  const fetchMyBookings = useCallback(async () => {
+    if (!contract || !account) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const bookingIds: bigint[] = await contract.getGuestBookings(account);
+      const fetchedBookings: Booking[] = [];
+      for (const id of bookingIds) {
+        const bookingData: any = await contract.getBooking(id);
+        console.log(bookingData);
+        fetchedBookings.push({
+          bookingId: Number(bookingData.bookingId),
+          apartmentId: Number(bookingData.apartmentId),
+          guest: bookingData.guest,
+          checkInDate: bookingData.checkInDate,
+          checkOutDate: bookingData.checkOutDate,
+          totalPrice: bookingData.totalPrice,
+          status: getBookingStatusString(bookingData.status),
+          timestamp: bookingData.timestamp,
+        });
+      }
+      //console.log(fetchedBookings);
+      setBookings(fetchedBookings);
+    } catch (err: any) {
+      console.error("Failed to fetch bookings:", err);
+      setError(`Failed to fetch bookings: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [contract, account]);
+
   useEffect(() => {
     if (contract) {
       fetchApartments();
     }
   }, [contract, fetchApartments]);
+
+  useEffect(() => {
+    if (activeTab === "bookings" && contract && account) {
+      fetchMyBookings();
+    }
+  }, [activeTab, contract, account, fetchMyBookings]);
 
   const handleListApartment = async (): Promise<void> => {
     if (!contract || !signer || !account) {
@@ -142,9 +210,9 @@ const TouristAgencyApp: React.FC = () => {
         newListing.location,
         newListing.description,
         newListing.pricePerNight,
-        newListing.imageUrls.filter((url) => url.trim() !== "") // Filter empty strings
+        newListing.imageUrls.filter((url) => url.trim() !== "")
       );
-      await tx.wait(); // Wait for transaction to be mined
+      await tx.wait();
 
       alert("Apartment listed successfully!");
       setShowListingModal(false);
@@ -155,10 +223,140 @@ const TouristAgencyApp: React.FC = () => {
         pricePerNight: BigInt(0),
         imageUrls: [""],
       });
-      fetchApartments(); // Refresh apartment list
+      fetchApartments();
     } catch (err: any) {
       console.error("Listing failed:", err);
       setError(`Listing failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBookApartment = async (): Promise<void> => {
+    if (!selectedApartment || !checkInDateStr || !checkOutDateStr) {
+      alert("Please select an apartment and fill in check-in/check-out dates.");
+      return;
+    }
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet to book.");
+      return;
+    }
+
+    const checkInTimestamp = dateToUnixTimestamp(checkInDateStr);
+    const checkOutTimestamp = dateToUnixTimestamp(checkOutDateStr);
+
+    if (checkOutTimestamp <= checkInTimestamp) {
+      alert("Check-out date must be after check-in date.");
+      return;
+    }
+
+    const nights =
+      (checkOutTimestamp - checkInTimestamp) / BigInt(SECONDS_PER_DAY);
+    const totalPriceWei = nights * selectedApartment.pricePerNight;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.bookApartment(
+        selectedApartment.id,
+        checkInTimestamp,
+        checkOutTimestamp,
+        { value: totalPriceWei }
+      );
+      await tx.wait();
+
+      alert("Booking successful!");
+      setShowBookingModal(false);
+      setSelectedApartment(null);
+      setCheckInDateStr("");
+      setCheckOutDateStr("");
+      fetchApartments();
+      fetchMyBookings();
+    } catch (err: any) {
+      console.error("Booking failed:", err);
+      setError(`Booking failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckIn = async (bookingId: number): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Are you sure you want to check-in to booking ID ${bookingId}?`
+      )
+    )
+      return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.checkIn(bookingId);
+      await tx.wait();
+      alert("Checked in successfully!");
+      fetchMyBookings();
+    } catch (err: any) {
+      console.error("Check-in failed:", err);
+      setError(`Check-in failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckOut = async (bookingId: number): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Are you sure you want to check-out from booking ID ${bookingId}?`
+      )
+    )
+      return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.checkOut(bookingId);
+      await tx.wait();
+      alert("Checked out successfully!");
+      fetchMyBookings();
+    } catch (err: any) {
+      console.error("Check-out failed:", err);
+      setError(`Check-out failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: number): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Are you sure you want to cancel booking ID ${bookingId}? This action is irreversible.`
+      )
+    )
+      return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.cancelBooking(bookingId);
+      await tx.wait();
+      alert("Booking cancelled successfully! Refund processed.");
+      fetchMyBookings();
+      fetchApartments();
+    } catch (err: any) {
+      console.error("Cancellation failed:", err);
+      setError(`Cancellation failed: ${err.message || err.toString()}`);
     } finally {
       setLoading(false);
     }
@@ -179,7 +377,7 @@ const TouristAgencyApp: React.FC = () => {
       )} ETH)`
     );
     if (newPriceStr === null || newPriceStr.trim() === "") {
-      return;
+      return; 
     }
 
     let newPriceWei: bigint;
@@ -218,6 +416,13 @@ const TouristAgencyApp: React.FC = () => {
       pricePerNight: BigInt(0),
       imageUrls: [""],
     });
+  };
+
+  const handleBookingClose = () => {
+    setShowBookingModal(false);
+    setSelectedApartment(null);
+    setCheckInDateStr("");
+    setCheckOutDateStr("");
   };
 
   return (
@@ -260,6 +465,20 @@ const TouristAgencyApp: React.FC = () => {
           apartments={apartments} 
           connected={connected}
           loading={loading}
+          setSelectedApartment={setSelectedApartment}
+          setShowBookingModal={setShowBookingModal}
+          />
+        )}
+        {activeTab === "bookings" && (
+          <MyBookings 
+            apartments={apartments}
+            bookings={bookings}
+            connectWallet={connectWallet}
+            connected={connected}
+            handleCancelBooking={handleCancelBooking}
+            handleCheckIn={handleCheckIn}
+            handleCheckOut={handleCheckOut}
+            loading={loading}
           />
         )}
         {activeTab === "list" && (
@@ -274,6 +493,18 @@ const TouristAgencyApp: React.FC = () => {
           />
         )}
       </main>
+      <BookingModal
+        showModal={showBookingModal}
+        selectedApartment={selectedApartment}
+        checkInDateStr={checkInDateStr}
+        setCheckInDateStr={setCheckInDateStr}
+        checkOutDateStr={checkOutDateStr}
+        setCheckOutDateStr={setCheckOutDateStr}
+        loading={loading}
+        onClose={handleBookingClose}
+        onConfirmBooking={handleBookApartment}
+      />
+
       <ListingModal
         showModal={showListingModal}
         newListing={newListing}
