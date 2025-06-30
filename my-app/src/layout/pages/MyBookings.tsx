@@ -1,66 +1,62 @@
-import { Wallet, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { formatEther } from 'ethers';
-import { Apartment, Booking } from '../../model/interfaces';
-import { unixTimestampToDateString } from '../../helpers/dateTimeHelpers';
+import { Wallet, Calendar, Clock, CheckCircle, XCircle } from "lucide-react";
+import { formatEther } from "ethers";
+import { Apartment, Booking } from "../../model/interfaces";
+import { unixTimestampToDateString } from "../../helpers/dateTimeHelpers";
 
 interface PageProps {
-    apartments: Apartment[];
-    bookings: Booking[];
-    loading: boolean;
-    connected: boolean;
-    connectWallet: () => Promise<void>;
-    handleCheckIn: (bookingId: number) => Promise<void>;
-    handleCheckOut: (bookingId: number) => Promise<void>;
-    handleCancelBooking: (bookingId: number) => Promise<void>;
+  apartments: Apartment[];
+  bookings: Booking[];
+  loading: boolean;
+  connected: boolean;
+  connectWallet: () => Promise<void>;
+  handleCheckIn: (bookingId: number) => Promise<void>;
+  handleCheckOut: (bookingId: number) => Promise<void>;
+  handleCancelBooking: (bookingId: number) => Promise<void>;
 }
 
-
-const MyBookings = ({ 
-  connected, 
-  bookings, 
-  loading, 
+const MyBookings = ({
+  connected,
+  bookings,
+  loading,
   apartments,
   connectWallet,
   handleCheckIn,
   handleCancelBooking,
   handleCheckOut,
 }: PageProps) => {
-
-const getStatusIcon = (status: Booking["status"]) => {
+  const getStatusIcon = (status: Booking["status"]) => {
     switch (status) {
-        case "Booked":
+      case "Booked":
         return <Clock className="w-4 h-4" />;
-        case "CheckedIn":
+      case "CheckedIn":
         return <CheckCircle className="w-4 h-4" />;
-        case "CheckedOut":
+      case "CheckedOut":
         return <CheckCircle className="w-4 h-4" />;
-        case "Cancelled":
+      case "Cancelled":
         return <XCircle className="w-4 h-4" />;
-        default:
+      default:
         return <Clock className="w-4 h-4" />;
     }
-};
+  };
 
-const getStatusColor = (status: Booking["status"]): string => {
+  const getStatusColor = (status: Booking["status"]): string => {
     switch (status) {
-        case "Booked":
+      case "Booked":
         return "text-blue-600";
-        case "CheckedIn":
+      case "CheckedIn":
         return "text-green-600";
-        case "CheckedOut":
+      case "CheckedOut":
         return "text-gray-600";
-        case "Cancelled":
+      case "Cancelled":
         return "text-red-600";
-        default:
+      default:
         return "text-gray-600";
     }
-};
+  };
 
   return (
     <div>
-      <h2 className="text-3xl font-bold text-gray-900 mb-8">
-        My Bookings
-      </h2>
+      <h2 className="text-3xl font-bold text-gray-900 mb-8">My Bookings</h2>
       {!connected && (
         <div className="text-center py-12">
           <Wallet className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -94,8 +90,8 @@ const getStatusColor = (status: Booking["status"]): string => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-900">
                   Apartment ID: {booking.apartmentId} -{" "}
-                  {apartments.find((a) => a.id === booking.apartmentId)
-                    ?.name || "Loading Name..."}
+                  {apartments.find((a) => a.id === booking.apartmentId)?.name ||
+                    "Loading Name..."}
                 </h3>
                 <div
                   className={`flex items-center space-x-1 ${getStatusColor(
@@ -133,9 +129,9 @@ const getStatusColor = (status: Booking["status"]): string => {
               <div className="mt-4 flex justify-end space-x-2">
                 {booking.status === "Booked" && (
                   <>
-                    {Number(booking.checkInDate) * 1000 <= Date.now() &&
-                      Number(booking.checkOutDate) * 1000 >=
-                        Date.now() && (
+                    {
+                      // Number(booking.checkInDate) * 1000 <= Date.now() &&
+                      Number(booking.checkOutDate) * 1000 >= Date.now() && (
                         <button
                           onClick={() => handleCheckIn(booking.bookingId)}
                           className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 transition text-sm"
@@ -143,12 +139,11 @@ const getStatusColor = (status: Booking["status"]): string => {
                         >
                           Check In
                         </button>
-                      )}
+                      )
+                    }
                     {Number(booking.checkInDate) * 1000 > Date.now() && (
                       <button
-                        onClick={() =>
-                          handleCancelBooking(booking.bookingId)
-                        }
+                        onClick={() => handleCancelBooking(booking.bookingId)}
                         className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition text-sm"
                         disabled={loading}
                       >
