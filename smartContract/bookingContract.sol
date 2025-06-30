@@ -179,12 +179,18 @@ contract TouristAgency {
     }
     
     function getAllApartments() external view returns (Apartment[] memory) {
-        Apartment[] memory allApartments = new Apartment[](apartmentCounter);
         uint256 activeApartmentCounter = 0;
         for (uint256 i = 1; i <= apartmentCounter; i++) {
             if(!apartments[i].isDeleted){
-                allApartments[activeApartmentCounter] = apartments[i];
                 activeApartmentCounter++;
+            }
+        }
+        Apartment[] memory allApartments = new Apartment[](activeApartmentCounter);
+        uint256 k = 0;
+        for (uint256 i = 1; i <= apartmentCounter; i++) {
+            if(!apartments[i].isDeleted){
+                allApartments[k] = apartments[i];
+                k++;
             }
         }
         return allApartments;
