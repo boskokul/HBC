@@ -1,26 +1,31 @@
-import React from 'react';
-import { Wallet, DollarSign } from 'lucide-react';
-import { formatEther } from 'ethers';
-import { Apartment } from '../../model/interfaces';
+import React from "react";
+import { Wallet, DollarSign, Trash2 } from "lucide-react";
+import { formatEther } from "ethers";
+import { Apartment } from "../../model/interfaces";
 
 interface PageProps {
-    apartments: Apartment[];
-    loading: boolean;
-    connected: boolean;
-    connectWallet: () => Promise<void>;
-    account: string | null;
-    setShowListingModal: (value: boolean) => void;
-    handleUpdateApartmentPrice: (apartmentId: number, currentPrice: bigint) => Promise<void>;
+  apartments: Apartment[];
+  loading: boolean;
+  connected: boolean;
+  connectWallet: () => Promise<void>;
+  account: string | null;
+  setShowListingModal: (value: boolean) => void;
+  handleUpdateApartmentPrice: (
+    apartmentId: number,
+    currentPrice: bigint
+  ) => Promise<void>;
+  handleDeleteApartment: (apartmentId: number) => Promise<void>;
 }
 
-const ListProperty = ({ 
-  connected, 
-  loading, 
+const ListProperty = ({
+  connected,
+  loading,
   connectWallet,
   setShowListingModal,
   apartments,
   account,
-  handleUpdateApartmentPrice
+  handleUpdateApartmentPrice,
+  handleDeleteApartment,
 }: PageProps) => {
   return (
     <div>
@@ -85,13 +90,12 @@ const ListProperty = ({
                         </div>
                         <div className="text-right">
                           <p className="font-medium text-blue-600">
-                            {formatEther(apartment.pricePerNight)}{" "}
-                            ETH/night
+                            {formatEther(apartment.pricePerNight)} ETH/night
                           </p>
                           <p className="text-sm text-gray-500">Active</p>
                         </div>
                       </div>
-                      <div className="mt-4 flex justify-end">
+                      <div className="mt-4 flex justify-end space-x-3">
                         <button
                           onClick={() =>
                             handleUpdateApartmentPrice(
@@ -104,6 +108,15 @@ const ListProperty = ({
                         >
                           <DollarSign className="w-4 h-4" />
                           <span>Update Price</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteApartment(apartment.id)}
+                          className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 transition text-sm flex items-center space-x-1"
+                          disabled={loading}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete</span>
                         </button>
                       </div>
                     </div>

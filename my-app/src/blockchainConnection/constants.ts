@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = "0x4c436530602519b20DF8683fE4eCCEfd8eB985f3";
+export const CONTRACT_ADDRESS = "0xd1C81f161B7cE7DF5554Ee6aDe3f9cA81085d47e";
 
 export const CONTRACT_ABI = [
   {
@@ -174,6 +174,11 @@ export const CONTRACT_ABI = [
         name: "pricePerNight",
         type: "uint256",
       },
+      {
+        internalType: "bool",
+        name: "isDeleted",
+        type: "bool",
+      },
     ],
     stateMutability: "view",
     type: "function",
@@ -308,6 +313,19 @@ export const CONTRACT_ABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_apartmentId",
+        type: "uint256",
+      },
+    ],
+    name: "deleteApartment",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "getAllApartments",
     outputs: [
@@ -347,6 +365,11 @@ export const CONTRACT_ABI = [
             internalType: "string[]",
             name: "imageUrls",
             type: "string[]",
+          },
+          {
+            internalType: "bool",
+            name: "isDeleted",
+            type: "bool",
           },
         ],
         internalType: "struct TouristAgency.Apartment[]",

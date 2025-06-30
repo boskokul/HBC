@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  Clock,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { Clock, CheckCircle, XCircle } from "lucide-react";
 import {
   ethers,
   BrowserProvider,
@@ -12,7 +8,10 @@ import {
   parseEther,
   formatEther,
 } from "ethers";
-import { CONTRACT_ABI, CONTRACT_ADDRESS } from "./blockchainConnection/constants";
+import {
+  CONTRACT_ABI,
+  CONTRACT_ADDRESS,
+} from "./blockchainConnection/constants";
 import { Booking, BookingStatus, Apartment } from "./model/interfaces";
 import Header from "./layout/Header";
 import BrowseApartments from "./layout/pages/BrowseApartments";
@@ -31,7 +30,7 @@ declare global {
 }
 
 const getBookingStatusString = (status: number): BookingStatus => {
-  status = Number(status)
+  status = Number(status);
   switch (status) {
     case 0:
       return "Booked";
@@ -377,7 +376,7 @@ const TouristAgencyApp: React.FC = () => {
       )} ETH)`
     );
     if (newPriceStr === null || newPriceStr.trim() === "") {
-      return; 
+      return;
     }
 
     let newPriceWei: bigint;
@@ -407,6 +406,27 @@ const TouristAgencyApp: React.FC = () => {
     }
   };
 
+  const handleDeleteApartment = async (apartmentId: number): Promise<void> => {
+    if (!contract || !signer || !account) {
+      alert("Please connect your wallet.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const tx = await contract.deleteApartment(apartmentId);
+      await tx.wait();
+      alert(`Apartment ${apartmentId} deleted.`);
+      fetchApartments();
+    } catch (err: any) {
+      console.error("Delete failed:", err);
+      setError(`Delete failed: ${err.message || err.toString()}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleListingClose = () => {
     setShowListingModal(false);
     setNewListing({
@@ -427,13 +447,13 @@ const TouristAgencyApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-      <Header 
-      connected={connected} 
-      account={account} 
-      activeTab={activeTab} 
-      connectWallet={connectWallet} 
-      loading={loading}
-      setActiveTab={setActiveTab}
+      <Header
+        connected={connected}
+        account={account}
+        activeTab={activeTab}
+        connectWallet={connectWallet}
+        loading={loading}
+        setActiveTab={setActiveTab}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -461,16 +481,16 @@ const TouristAgencyApp: React.FC = () => {
           </div>
         )}
         {activeTab === "browse" && (
-          <BrowseApartments 
-          apartments={apartments} 
-          connected={connected}
-          loading={loading}
-          setSelectedApartment={setSelectedApartment}
-          setShowBookingModal={setShowBookingModal}
+          <BrowseApartments
+            apartments={apartments}
+            connected={connected}
+            loading={loading}
+            setSelectedApartment={setSelectedApartment}
+            setShowBookingModal={setShowBookingModal}
           />
         )}
         {activeTab === "bookings" && (
-          <MyBookings 
+          <MyBookings
             apartments={apartments}
             bookings={bookings}
             connectWallet={connectWallet}
@@ -482,13 +502,14 @@ const TouristAgencyApp: React.FC = () => {
           />
         )}
         {activeTab === "list" && (
-          <ListProperty 
+          <ListProperty
             account={account}
             apartments={apartments}
             connectWallet={connectWallet}
             connected={connected}
             loading={loading}
             handleUpdateApartmentPrice={handleUpdateApartmentPrice}
+            handleDeleteApartment={handleDeleteApartment}
             setShowListingModal={setShowListingModal}
           />
         )}
