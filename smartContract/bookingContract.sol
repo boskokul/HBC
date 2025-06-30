@@ -10,6 +10,7 @@ contract TouristAgency {
         string description;
         uint256 pricePerNight;
         string[] imageUrls;
+        bool isDeleted;
     }
     
     struct Booking {
@@ -65,7 +66,8 @@ contract TouristAgency {
             location: _location,
             description: _description,
             pricePerNight: _pricePerNight,
-            imageUrls: _imageUrls
+            imageUrls: _imageUrls,
+            isDeleted: false
         });
         
         ownerApartments[msg.sender].push(apartmentCounter);
@@ -82,6 +84,7 @@ contract TouristAgency {
         // require(_checkInDate >= block.timestamp, "Check-in date must be in the future");
         require(_checkOutDate > _checkInDate, "Check-out must be after check-in");
         require(msg.sender != apartments[_apartmentId].owner, "Owner cannot book own apartment");
+        require(!apartments[_apartmentId].isDeleted , "Apartment deleted");
         
         uint256 nights = (_checkOutDate - _checkInDate) / SECONDS_PER_DAY;
         uint256 totalPrice = nights * apartments[_apartmentId].pricePerNight;
@@ -177,8 +180,12 @@ contract TouristAgency {
     
     function getAllApartments() external view returns (Apartment[] memory) {
         Apartment[] memory allApartments = new Apartment[](apartmentCounter);
+        uint256 activeApartmentCounter = 0;
         for (uint256 i = 1; i <= apartmentCounter; i++) {
-            allApartments[i-1] = apartments[i];
+            if(!apartments[i].isDeleted){
+                allApartments[activeApartmentCounter] = apartments[i];
+                activeApartmentCounter++;
+            }
         }
         return allApartments;
     }
@@ -198,5 +205,10 @@ contract TouristAgency {
             }
         }
         return false;
+    }
+
+    function deleteApartment(uint256 _apartmentId) external {
+        require(apartments[_apartmentId].owner == msg.sender, "Not apartment owner");
+        apartments[_apartmentId].isDeleted = true;
     }
 }
